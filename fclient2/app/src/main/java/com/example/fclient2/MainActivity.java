@@ -4,50 +4,76 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.widget.TextView;
+import android.view.View;
+import android.widget.Button;
+import android.widget.Toast;
+
+import org.apache.commons.io.IOUtils;
+
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.example.fclient2.databinding.ActivityMainBinding;
 
-import java.util.Arrays;
-import java.util.Random;
+
 public class MainActivity extends AppCompatActivity {
-    // Used to load the 'native-lib' library on application startup
-        static {
-            System.loadLibrary("fclient2");
-            System.loadLibrary("mbedcrypto");
+    // Used to load the 'RPO2022' library on application startup.
+//    static {
+//        System.loadLibrary("fclient2");
+//        System.loadLibrary("mbedcrypto");
+//    }
+
+    private ActivityMainBinding binding;
+
+    // Метод, который возвращает название говносайта
+    protected String getPageTitle(String html) {
+        Pattern pattern = Pattern.compile("<title>(.+?)</title>", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(html);
+
+        String p;
+        if (matcher.find()) {
+            p = matcher.group(1);
+        } else {
+            p = "Not found";
         }
-    static {
-        System.loadLibrary("fclient2");
+
+        return p;
     }
+
+    // Метод, который тестирует работу http клиента
+    protected void testHttpClient() {
+        new Thread(() -> {
+            try {
+                HttpURLConnection uc = (HttpURLConnection) (new URL("http://10.0.2.2:8081/api/v1/title").openConnection());
+                InputStream inputStream = uc.getInputStream();
+
+                String html = IOUtils.toString(inputStream);
+                String title = getPageTitle(html);
+
+                runOnUiThread(() -> {
+                    Toast.makeText(this, title, Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception exception) {
+                Log.e("fapptag", "Http client fails", exception);
+            }
+        }).start();
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
-        int res = initRng();
-        byte[] rnd = randomBytes(16);
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
-        Random random = new Random();
-
-        byte[] data = new byte[16];
-        for (int i = 0; i < data.length; ++i) {
-            data[i] = (byte) ((byte) random.nextInt() % 255);
-        }
-        Log.i("data", Arrays.toString(data));
-        byte[] encrypt_data = encrypt(rnd, data);
-
-        byte[] decrypt_data = decrypt(rnd, encrypt_data);
-
-        Log.i("enc_data", Arrays.toString(encrypt_data));
-        Log.i("dec_data", Arrays.toString(decrypt_data));
-
-        TextView tv = findViewById(R.id.sample_text);
-        tv.setText(stringFromJNI());
+        Button myButton = (Button) findViewById(R.id.sample_button);
     }
 
-    public native String stringFromJNI();
-    public static native int initRng();
-    public static native byte[] randomBytes(int no);
-    public static native byte[] encrypt(byte[] key, byte[] data);
-    public static native byte[] decrypt(byte[] key, byte[] data);
+    // Альтернативный метод нажатия кнопки
+    public void onButtonClick(View view) {
+        testHttpClient();
+    }
 }
